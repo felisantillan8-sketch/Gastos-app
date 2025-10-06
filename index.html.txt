@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Control de Gastos — Canvas</title>
+<style>
+  :root{
+    --bg:#0f1724; --card:#0b1220; --accent:#7c5cff; --muted:#9aa4b2; --glass: rgba(255,255,255,0.04);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
+    background: linear-gradient(180deg,#07111a 0%, #071826 100%); color:#e6eef8;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+  .wrap{max-width:900px;margin:18px auto;padding:12px;}
+  header{display:flex;gap:12px;align-items:center;justify-content:space-between}
+  h1{font-size:1.1rem;margin:0}
+  .controls{display:flex;gap:8px;align-items:center}
+  .btn{
+    background:var(--accent); border:none;color:white;padding:8px 10px;border-radius:10px;font-weight:600;
+    box-shadow:0 6px 18px rgba(124,92,255,0.14);
+  }
+  .mini{background:var(--glass); padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);color:var(--muted)}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:14px;padding:12px;margin-top:12px;box-shadow:0 4px 20px rgba(2,6,23,0.6)}
+  .top-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .left{flex:1;min-width:240px}
+  .right{width:250px;min-width:220px}
+  canvas{width:100%;height:auto;display:block}
+  label{display:block;font-size:0.8rem;color:var(--muted);margin-bottom:6px}
+  input[type="number"], input[type="text"], select{
+    width:100%; padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);
+    background:transparent;color:inherit;font-size:0.95rem;
+  }
+  .row{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .list{margin-top:12px;display:grid;gap:8px}
+  .cat{
+    display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;background:rgba(255,255,255,0.02);
+  }
+  .color-swatch{width:14px;height:14px;border-radius:4px;flex:0 0 14px}
+  .cat-name{flex:1;font-weight:600}
+  .cat-input{width:110px}
+  .small{font-size:0.85rem;color:var(--muted)}
+  .totals{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .tot-box{flex:1;padding:8px;border-radius:10px;background:linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));text-align:center}
+  .danger{background:linear-gradient(90deg, rgba(255,50,60,0.08), rgba(255,50,60,0.04))}
+  .muted{color:var(--muted)}
+  .link{background:none;border:0;color:var(--accent);font-weight:700}
+  .footer{font-size:0.8rem;color:var(--muted);text-align:center;margin-top:14px}
+  @media(min-width:800px){
+    .left{min-width:420px}
+    .right{width:360px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Control de Gastos — Visualizador</h1>
+    <div class="controls">
+      <button id="prevMonth" class="mini">◀</button>
+      <div id="monthLabel" class="mini"></div>
+      <button id="nextMonth" class="mini">▶</button>
+      <button id="resetBtn" class="mini">Reset</button>
+    </div>
+  </header>
+
+  <div class="card top-row">
+    <div class="left">
+      <label>Ingresos mensuales (€)</label>
+      <div class="row">
+        <input id="income" type="number" min="0" step="0.01" placeholder="0.00" />
+        <button id="saveIncome" class="btn">Guardar</button>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+        <div style="flex:1">
+          <label>Añadir categoría</label>
+          <div style="display:flex;gap:8px">
+            <input id="newName" type="text" placeholder="Nombre (ej. Luz)" />
+            <input id="newExpected" type="number" placeholder="Presupuesto €" />
+            <button id="addCat" class="btn">+ Añadir</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="list" id="categories"></div>
+
+      <div class="totals">
+        <div class="tot-box">
+          <div class="small">Total esperado</div>
+          <div id="totalExpected" style="font-weight:800;font-size:1.05rem">€0.00</div>
+        </div>
+        <div class="tot-box">
+          <div class="small">Total real</div>
+          <div id="totalActual" style="font-weight:800;font-size:1.05rem">€0.00</div>
+        </div>
+        <div class="tot-box" id="savingsBox">
+          <div class="small">Ahorro</div>
+          <div id="savings" style="font-weight:800;font-size:1.05rem">€0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="card" style="padding:10px">
+        <label class="small">Gráfico — Gasto real (externo) vs Presupuesto (interno)</label>
+        <canvas id="chart" width="600" height="600"></canvas>
+        <div id="legend" class="small" style="margin-top:8px"></div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label class="small">Resumen</label>
+        <div class="card small" style="padding:10px">
+          <div id="summaryText">Sin datos</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Los datos se guardan en tu dispositivo (localmente). Compatible móvil/iPad.</div>
+</div>
+
+<script>
+/* --- Utils --- */
+const keyPrefix = 'gastos_canvas_v1_';
+const monthLabel = document.getElementById('monthLabel');
+const incomeInput = document.getElementById('income');
+const saveIncome = document.getElementById('saveIncome');
+const addCatBtn = document.getElementById('addCat');
+const newName = document.getElementById('newName');
+const newExpected = document.getElementById('newExpected');
+const categoriesDiv = document.getElementById('categories');
+const totalExpectedEl = document.getElementById('totalExpected');
+const totalActualEl = document.getElementById('totalActual');
+const savingsEl = document.getElementById('savings');
+const summaryText = document.getElementById('summaryText');
+const chartCanvas = document.getElementById('chart');
+const legendDiv = document.getElementById('legend');
+const prevMonth = document.getElementById('prevMonth');
+const nextMonth = document.getElementById('nextMonth');
+const resetBtn = document.getElementById('resetBtn');
+
+let ctx = chartCanvas.getContext('2d');
+
+/* current month tracked as YYYY-MM */
+let current = (() => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+})();
+
+function monthToLabel(m){
+  const [y,mo] = m.split('-');
+  const d = new Date(Number(y), Number(mo)-1, 1);
+  return d.toLocaleString(undefined, {month:'long', year:'numeric'});
+}
+
+function storageKey(month){ return keyPrefix + month; }
+
+/* Default data structure */
+function defaultData(){
+  return { income:0, categories: [
+    {id: idGen(), name:'Alquiler', expected:0, actual:0},
+    {id: idGen(), name:'Comida', expected:0, actual:0},
+    {id: idGen(), name:'Luz', expected:0, actual:0},
+    {id: idGen(), name:'Transporte', expected:0, actual:0}
+  ]};
+}
+
+function idGen(){ return 'c_'+Math.random().toString(36).slice(2,9); }
+
+function load(month){
+  const raw = localStorage.getItem(storageKey(month));
+  if (!raw) return defaultData();
+  try{ return JSON.parse(raw); }catch(e){ return defaultData(); }
+}
+function save(month, data){
+  localStorage.setItem(storageKey(month), JSON.stringify(data));
+}
+
+/* Colors for categories */
+function colorFor(i){
+  const palette = [
+    '#7c5cff','#ff7ab6','#4ad4a9','#ffd86b','#6cc1ff','#ffa66b','#b39cff','#66d0ff',
+    '#ffb5d2','#b6f0d6','#ffd1a9'
+  ];
+  return palette[i % palette.length];
+}
+
+/* -- Render UI -- */
+function render(){
+  monthLabel.textContent = monthToLabel(current);
+  const data = load(current);
+
+  incomeInput.value = data.income ?? 0;
+
+  // categories
+  categoriesDiv.innerHTML = '';
+  data.categories.forEach((c, i) => {
+    const row = document.createElement('div'); row.className='cat';
+    row.innerHTML = `
+      <div class="color-swatch" style="background:${colorFor(i)}"></div>
+      <div class="cat-name">${escapeHtml(c.name)}</div>
+      <input class="cat-input" type="number" min="0" step="0.01" value="${c.expected ?? 0}" data-id="${c.id}" data-type="expected" />
+      <input class="cat-input" type="number" min="0" step="0.01" value="${c.actual ?? 0}" data-id="${c.id}" data-type="actual" />
+      <button class="mini" data-id="${c.id}" data-action="del">✖</button>
+    `;
+    categoriesDiv.appendChild(row);
+  });
+
+  // attach listeners to inputs & delete
+  categoriesDiv.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('change', (e)=>{
+      const id = e.target.dataset.id;
+      const type = e.target.dataset.type;
+      const val = parseFloat(e.target.value) || 0;
+      const d = load(current);
+      const cat = d.categories.find(x=>x.id===id);
+      if(!cat) return;
+      cat[type] = val;
+      save(current,d);
+      render(); // update totals & chart
+    });
+  });
+  categoriesDiv.querySelectorAll('button[data-action="del"]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const id = e.target.dataset.id;
+      const d = load(current);
+      d.categories = d.categories.filter(x=>x.id!==id);
+      save(current,d); render();
+    });
+  });
+
+  // totals
+  const totalExpected = data.categories.reduce((s,c)=>s + (Number(c.expected)||0),0);
+  const totalActual = data.categories.reduce((s,c)=>s + (Number(c.actual)||0),0);
+  totalExpectedEl.textContent = '€' + totalExpected.toFixed(2);
+  totalActualEl.textContent = '€' + totalActual.toFixed(2);
+  const savings = (Number(data.income)||0) - totalActual;
+  savingsEl.textContent = '€' + savings.toFixed(2);
+  if (savings < 0){
+    document.getElementById('savingsBox').classList.add('danger');
+  } else {
+    document.getElementById('savingsBox').classList.remove('danger');
+  }
+
+  // summary
+  summaryText.innerHTML = `
+    Ingresos: <strong>€${(data.income||0).toFixed(2)}</strong><br>
+    Total esperado: <strong>€${totalExpected.toFixed(2)}</strong><br>
+    Total real: <strong>€${totalActual.toFixed(2)}</strong><br>
+    Ahorro: <strong>€${savings.toFixed(2)}</strong>
+  `;
+
+  drawChart(data);
+}
+
+/* Chart: two-ring donut (inner=expected, outer=actual) */
+function drawChart(data){
+  const cats = data.categories;
+  const totalExpected = cats.reduce((s,c)=>s+(Number(c.expected)||0),0);
+  const totalActual = cats.reduce((s,c)=>s+(Number(c.actual)||0),0);
+
+  const DPR = window.devicePixelRatio || 1;
+  // set canvas logical size
+  const size = Math.min(chartCanvas.clientWidth, 360);
+  chartCanvas.width = size * DPR;
+  chartCanvas.height = size * DPR;
+  chartCanvas.style.width = size + 'px';
+  chartCanvas.style.height = size + 'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,chartCanvas.width,chartCanvas.height);
+
+  const cx = size/2, cy = size/2;
+  const outerR = size*0.42; const innerR = size*0.28;
+  const gap = 0.02; // small gap between arcs
+  // draw actual (outer)
+  let start = -Math.PI/2;
+  cats.forEach((c,i)=>{
+    const val = Number(c.actual)||0;
+    const frac = (totalActual > 0) ? val/totalActual : (1/cats.length);
+    const end = start + frac * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy, outerR, start+gap, end-gap);
+    ctx.lineTo(cx,cy);
+    ctx.closePath();
+    ctx.fillStyle = hexToRgba(colorFor(i), 1);
+    ctx.fill();
+    start = end;
+  });
+
+  // inner ring expected (draw as ring)
+  start = -Math.PI/2;
+  cats.forEach((c,i)=>{
+    const val = Number(c.expected)||0;
+    const frac = (totalExpected > 0) ? val/totalExpected : (1/cats.length);
+    const end = start + frac * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(cx,cy, innerR, start+gap, end-gap);
+    ctx.arc(cx,cy, innerR*0.6, end-gap, start+gap, true);
+    ctx.closePath();
+    ctx.fillStyle = hexToRgba(colorFor(i), 0.85);
+    ctx.fill();
+    start = end;
+  });
+
+  // center text
+  ctx.fillStyle = '#e6eef8';
+  ctx.textAlign = 'center';
+  ctx.font = '700 16px system-ui, -apple-system';
+  ctx.fillText('Gastos', cx, cy - 4);
+  ctx.font = '600 13px system-ui, -apple-system';
+  const totalActualStr = '€' + totalActual.toFixed(2);
+  ctx.fillText(totalActualStr, cx, cy + 16);
+
+  // legend
+  legendDiv.innerHTML = '';
+  cats.forEach((c,i)=>{
+    const el = document.createElement('div');
+    el.style.display='flex'; el.style.alignItems='center'; el.style.gap='8px'; el.style.marginBottom='6px';
+    el.innerHTML = `<div style="width:12px;height:12px;border-radius:3px;background:${colorFor(i)}"></div>
+      <div style="flex:1">${escapeHtml(c.name)}</div>
+      <div class="muted">E: €${(Number(c.expected)||0).toFixed(2)}</div>
+      <div style="width:10px"></div>
+      <div class="muted">R: €${(Number(c.actual)||0).toFixed(2)}</div>`;
+    legendDiv.appendChild(el);
+  });
+}
+
+/* small helpers */
+function hexToRgba(hex, a=1){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+function escapeHtml(s){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+/* --- Events --- */
+saveIncome.addEventListener('click', ()=>{
+  const d = load(current);
+  d.income = parseFloat(incomeInput.value) || 0;
+  save(current,d); render();
+});
+
+addCatBtn.addEventListener('click', ()=>{
+  const name = (newName.value || '').trim();
+  const expected = parseFloat(newExpected.value) || 0;
+  if (!name) return alert('Pon un nombre a la categoría.');
+  const d = load(current);
+  d.categories.push({id:idGen(), name, expected, actual:0});
+  save(current,d);
+  newName.value=''; newExpected.value='';
+  render();
+});
+
+prevMonth.addEventListener('click', ()=>{
+  current = shiftMonth(current, -1); render();
+});
+nextMonth.addEventListener('click', ()=>{
+  current = shiftMonth(current, +1); render();
+});
+
+resetBtn.addEventListener('click', ()=>{
+  if (!confirm('¿Borrar datos de este mes?')) return;
+  localStorage.removeItem(storageKey(current));
+  render();
+});
+
+/* month helper */
+function shiftMonth(m, delta){
+  const [y,mo] = m.split('-').map(Number);
+  const d = new Date(y, mo-1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+/* keyboard-friendly: save on Enter in income */
+incomeInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ saveIncome.click(); } });
+
+/* initial render */
+render();
+
+/* resize redraw */
+window.addEventListener('resize', ()=> drawChart(load(current)));
+
+/* END */
+</script>
+</body>
+</html>
